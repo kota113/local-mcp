@@ -213,6 +213,7 @@ pub async fn start(session_id: Option<&str>) -> Result<()> {
                     }
                     Message::Approval { request } => {
                         show_request(&request)?;
+                        notify_approval(&request);
                         pending.push_back((request, stream));
                     }
                 }
@@ -223,6 +224,24 @@ pub async fn start(session_id: Option<&str>) -> Result<()> {
             }
         }
     }
+}
+
+fn notify_approval(request: &Request) {
+    let operation = request.operation.clone();
+    let detail = request.detail.clone();
+    let cwd = request.cwd.display().to_string();
+
+    tokio::task::spawn_blocking(move || {
+        #[cfg(target_os = "macos")]
+        if let Ok(bundle_id) = std::env::var("__CFBundleIdentifier") {
+            let _ = notify_rust::set_application(&bundle_id);
+        }
+
+        let _ = notify_rust::Notification::new()
+            .summary("local-mcp: approval required")
+            .body(&format!("{operation}\n{cwd}\n{detail}"))
+            .show();
+    });
 }
 
 fn show_activity(title: &str, detail: Option<&str>) {
